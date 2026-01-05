@@ -1,6 +1,6 @@
 [package]
 name = "bn-loader"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "A profile launcher for Binary Ninja that manages multiple configurations"
 license = "BSD-3-Clause"
