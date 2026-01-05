@@ -42,7 +42,7 @@ pub(crate) fn cache_dir() -> Option<PathBuf> {
     home_dir().map(|home| home.join(".cache").join("bn-loader"))
 }
 
-fn default_exclusions() -> Vec<String> {
+pub(crate) fn default_exclusions() -> Vec<String> {
     vec![
         "license.dat".to_string(),
         "license.txt".to_string(),
@@ -105,7 +105,8 @@ pub(crate) struct Config {
 
 #[derive(Deserialize, Serialize, Default, Clone)]
 pub(crate) struct SyncConfig {
-    #[serde(default = "default_exclusions")]
+    /// Additional exclusion patterns (merged with defaults)
+    #[serde(default)]
     pub exclusions: Vec<String>,
 }
 

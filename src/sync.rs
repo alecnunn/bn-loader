@@ -1,4 +1,4 @@
-use crate::config::{Config, Profile};
+use crate::config::{Config, Profile, default_exclusions};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use std::fs;
 use std::io::{self, Write};
@@ -53,7 +53,9 @@ pub(crate) fn run_sync(config: &Config, options: &SyncOptions) -> Result<(), Str
         return Err("No target profiles to sync to".to_string());
     }
 
-    let mut exclusions: Vec<String> = config.sync.exclusions.clone();
+    // Start with defaults, add config exclusions, then CLI exclusions
+    let mut exclusions = default_exclusions();
+    exclusions.extend(config.sync.exclusions.iter().cloned());
     for excl in &options.extra_exclusions {
         exclusions.push((*excl).to_string());
     }

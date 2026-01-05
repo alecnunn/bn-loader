@@ -18,21 +18,13 @@
 # Sync Settings (optional)
 # ============================================================================
 #
-# These glob patterns are excluded when running 'bn-loader sync'.
-# If you omit this section, these defaults are used:
+# Default exclusions (always applied):
 #   license.dat, license.txt, user.id, keychain/, __pycache__/, *.pyc
 #
-# Uncomment and customize to override the defaults:
+# Add your own exclusions (merged with defaults):
 #
 # [sync]
-# exclusions = [
-#     "license.dat",
-#     "license.txt",
-#     "user.id",
-#     "keychain/",
-#     "__pycache__/",
-#     "*.pyc",
-# ]
+# exclusions = ["my-custom-dir/", "*.tmp"]
 
 # ============================================================================
 # Profile Examples

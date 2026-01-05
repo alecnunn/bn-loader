@@ -135,6 +135,42 @@ These go in the `[global]` section:
 | `executable` | no | Binary name (defaults to `binaryninja.exe` on Windows, `binaryninja` elsewhere) |
 | `debug` | no | Enable debug logging for this profile |
 
+## Sync Configuration
+
+The `sync` command copies settings, plugins, and other configuration between profiles.
+
+### What Gets Synced
+
+These items are synced from the source profile (if they exist):
+
+- `plugins/` - Manual plugin installations
+- `repositories/` - Plugin manager data
+- `signatures/` - Custom signatures
+- `themes/` - UI themes
+- `snippets/` - Code snippets
+- `types/` - Type libraries
+- `settings.json` - Binary Ninja settings
+- `startup.py` - Startup script
+- `keybindings.json` - Key bindings
+
+### Exclusions
+
+These patterns are always excluded to protect license files:
+`license.dat`, `license.txt`, `user.id`, `keychain/`, `__pycache__/`, `*.pyc`
+
+Add your own exclusions in your config (these merge with the defaults):
+
+```toml
+[sync]
+exclusions = ["my-custom-dir/", "*.tmp"]
+```
+
+Or use the `--exclude` flag for one-off exclusions:
+
+```bash
+bn-loader sync --from personal --exclude "temp/"
+```
+
 ## License
 
 BSD-3-Clause. See [LICENSE](LICENSE) for details.
