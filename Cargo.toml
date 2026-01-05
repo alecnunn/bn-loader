@@ -1,0 +1,28 @@
+[package]
+name = "bn-loader"
+version = "0.1.0"
+edition = "2024"
+description = "A profile launcher for Binary Ninja that manages multiple configurations"
+license = "BSD-3-Clause"
+readme = "README.md"
+repository = "https://github.com/alecnunn/bn-loader"
+homepage = "https://github.com/alecnunn/bn-loader"
+documentation = "https://github.com/alecnunn/bn-loader#readme"
+authors = ["Alec Nunn <alec.nunn@gmail.com>"]
+keywords = ["binary-ninja", "reverse-engineering", "launcher", "config-management"]
+categories = ["command-line-utilities", "config", "development-tools"]
+
+[[bin]]
+name = "bn-loader"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+clap_complete = { version = "4", features = ["unstable-dynamic"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+globset = "0.4"
+termcolor = "1.4"
+ureq = "3"
+semver = "1"

@@ -1,0 +1,85 @@
+# bn-loader configuration
+#
+# Copy this file to ~/.config/bn-loader.toml and uncomment the examples
+# for your platform.
+
+# ============================================================================
+# Global Settings (optional)
+# ============================================================================
+
+[global]
+# default_profile = "personal"  # Launch this profile when no argument given
+# color = "auto"                # Color output: "auto", "always", "never"
+# check_updates = true          # Check for updates on launch
+# backup_retention = 5          # Keep this many sync backups (0 = unlimited)
+# debug = false                 # Enable debug logging globally
+
+# ============================================================================
+# Sync Settings (optional)
+# ============================================================================
+#
+# These glob patterns are excluded when running 'bn-loader sync'.
+# If you omit this section, these defaults are used:
+#   license.dat, license.txt, user.id, keychain/, __pycache__/, *.pyc
+#
+# Uncomment and customize to override the defaults:
+#
+# [sync]
+# exclusions = [
+#     "license.dat",
+#     "license.txt",
+#     "user.id",
+#     "keychain/",
+#     "__pycache__/",
+#     "*.pyc",
+# ]
+
+# ============================================================================
+# Profile Examples
+# ============================================================================
+#
+# Uncomment and modify the examples for your platform.
+# Each profile needs:
+#   - install_dir: Path to Binary Ninja installation
+#   - config_dir:  Path to user data directory (settings, plugins, etc.)
+#
+# Optional per-profile settings:
+#   - executable: Binary name (defaults to binaryninja.exe on Windows, binaryninja elsewhere)
+#   - debug: Enable debug logging for this profile
+
+# --- Windows ---
+
+# [profiles.personal]
+# install_dir = "C:\\Program Files\\Binary Ninja Personal"
+# config_dir = "C:\\Users\\YourUser\\AppData\\Roaming\\Binary Ninja Personal"
+
+# [profiles.commercial]
+# install_dir = "C:\\Program Files\\Binary Ninja"
+# config_dir = "C:\\Users\\YourUser\\AppData\\Roaming\\Binary Ninja"
+
+# --- Linux ---
+
+# [profiles.personal]
+# install_dir = "/opt/binaryninja-personal"
+# config_dir = "/home/youruser/.binaryninja-personal"
+
+# [profiles.commercial]
+# install_dir = "/opt/binaryninja"
+# config_dir = "/home/youruser/.binaryninja"
+
+# --- macOS ---
+
+# [profiles.personal]
+# install_dir = "/Applications/Binary Ninja Personal.app/Contents/MacOS"
+# config_dir = "/Users/youruser/Library/Application Support/Binary Ninja Personal"
+
+# [profiles.commercial]
+# install_dir = "/Applications/Binary Ninja.app/Contents/MacOS"
+# config_dir = "/Users/youruser/Library/Application Support/Binary Ninja"
+
+# --- Development Profile (any platform) ---
+
+# [profiles.dev]
+# install_dir = "/path/to/dev/binaryninja"
+# config_dir = "/path/to/dev/config"
+# debug = true
