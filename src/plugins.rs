@@ -1,4 +1,5 @@
 use crate::config::Profile;
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -60,7 +61,7 @@ pub(crate) struct PluginInfo {
     pub source: PluginSource,
 }
 
-pub(crate) fn list_plugins(profile: &Profile) -> Result<Vec<PluginInfo>, String> {
+pub(crate) fn list_plugins(profile: &Profile) -> Result<Vec<PluginInfo>> {
     let mut plugins = Vec::new();
 
     // 1. Manual plugins from plugins/ directory
@@ -87,14 +88,13 @@ pub(crate) fn list_plugins(profile: &Profile) -> Result<Vec<PluginInfo>, String>
     Ok(plugins)
 }
 
-fn read_manual_plugins(plugins_dir: &Path) -> Result<Vec<PluginInfo>, String> {
+fn read_manual_plugins(plugins_dir: &Path) -> Result<Vec<PluginInfo>> {
     let mut plugins = Vec::new();
 
-    let entries =
-        fs::read_dir(plugins_dir).map_err(|e| format!("Failed to read plugins directory: {e}"))?;
+    let entries = fs::read_dir(plugins_dir).context("Failed to read plugins directory")?;
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
+        let entry = entry.context("Failed to read entry")?;
         let path = entry.path();
 
         if !path.is_dir() {
@@ -134,12 +134,11 @@ fn read_plugin_metadata(plugin_dir: &Path, dir_name: &str) -> PluginInfo {
     }
 }
 
-fn read_repo_plugins(status_file: &Path) -> Result<Vec<PluginInfo>, String> {
-    let content = fs::read_to_string(status_file)
-        .map_err(|e| format!("Failed to read plugin_status.json: {e}"))?;
+fn read_repo_plugins(status_file: &Path) -> Result<Vec<PluginInfo>> {
+    let content = fs::read_to_string(status_file).context("Failed to read plugin_status.json")?;
 
-    let repos: PluginStatusFile = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse plugin_status.json: {e}"))?;
+    let repos: PluginStatusFile =
+        serde_json::from_str(&content).context("Failed to parse plugin_status.json")?;
 
     let mut plugins = Vec::new();
 
@@ -168,9 +167,15 @@ fn read_repo_plugins(status_file: &Path) -> Result<Vec<PluginInfo>, String> {
     Ok(plugins)
 }
 
-pub(crate) fn print_plugins(profile_name: &str, plugins: &[PluginInfo]) {
+pub(crate) fn print_plugins(
+    out: &crate::output::Output,
+    profile_name: &str,
+    plugins: &[PluginInfo],
+) {
     if plugins.is_empty() {
-        println!("No plugins installed for profile '{profile_name}'");
+        out.status(&format!(
+            "No plugins installed for profile '{profile_name}'"
+        ));
         return;
     }
 
@@ -187,35 +192,38 @@ pub(crate) fn print_plugins(profile_name: &str, plugins: &[PluginInfo]) {
         .filter(|p| matches!(p.source, PluginSource::Community))
         .collect();
 
-    println!(
+    out.heading(&format!(
         "Plugins for profile '{}' ({} total):",
         profile_name,
         plugins.len()
-    );
+    ));
 
     if !official.is_empty() {
-        println!("\n  [Official Repository] ({}):", official.len());
+        out.heading(&format!("\n  [Official Repository] ({}):", official.len()));
         for plugin in &official {
-            print_plugin_line(plugin);
+            print_plugin_line(out, plugin);
         }
     }
 
     if !community.is_empty() {
-        println!("\n  [Community Repository] ({}):", community.len());
+        out.heading(&format!(
+            "\n  [Community Repository] ({}):",
+            community.len()
+        ));
         for plugin in &community {
-            print_plugin_line(plugin);
+            print_plugin_line(out, plugin);
         }
     }
 
     if !manual.is_empty() {
-        println!("\n  [Manual] ({}):", manual.len());
+        out.heading(&format!("\n  [Manual] ({}):", manual.len()));
         for plugin in &manual {
-            print_plugin_line(plugin);
+            print_plugin_line(out, plugin);
         }
     }
 }
 
-fn print_plugin_line(plugin: &PluginInfo) {
+fn print_plugin_line(out: &crate::output::Output, plugin: &PluginInfo) {
     let display_name = plugin.name.as_deref().unwrap_or(&plugin.dir_name);
     let version = plugin.version.as_deref().unwrap_or("?");
     let author = plugin
@@ -224,5 +232,5 @@ fn print_plugin_line(plugin: &PluginInfo) {
         .map(|a| format!(" by {a}"))
         .unwrap_or_default();
 
-    println!("    {display_name} v{version}{author}");
+    out.out(&format!("    {display_name} v{version}{author}"));
 }

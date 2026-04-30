@@ -1,3 +1,4 @@
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -37,9 +38,12 @@ fn user_config_path() -> Option<PathBuf> {
     home_dir().map(|home| home.join(".config").join(CONFIG_FILE_NAME))
 }
 
-/// Get the cache directory for bn-loader
-pub(crate) fn cache_dir() -> Option<PathBuf> {
-    home_dir().map(|home| home.join(".cache").join("bn-loader"))
+/// Get the default base directory for auto-generated profile config dirs.
+///
+/// Returns `<home>/.config/bn-loader/profiles`. Used by `bn-loader install`
+/// to derive a default `--config-dir` when one isn't supplied.
+pub(crate) fn default_profiles_dir() -> Option<PathBuf> {
+    home_dir().map(|home| home.join(".config").join("bn-loader").join("profiles"))
 }
 
 pub(crate) fn default_exclusions() -> Vec<String> {
@@ -53,15 +57,11 @@ pub(crate) fn default_exclusions() -> Vec<String> {
     ]
 }
 
-fn default_true() -> bool {
-    true
-}
-
 fn default_backup_retention() -> usize {
     5
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum ColorMode {
     #[default]
@@ -80,10 +80,6 @@ pub(crate) struct GlobalConfig {
     #[serde(default)]
     pub color: ColorMode,
 
-    /// Check for updates on launch
-    #[serde(default = "default_true")]
-    pub check_updates: bool,
-
     /// How many sync backups to retain (0 = unlimited)
     #[serde(default = "default_backup_retention")]
     pub backup_retention: usize,
@@ -101,6 +97,8 @@ pub(crate) struct Config {
     pub profiles: HashMap<String, Profile>,
     #[serde(default)]
     pub sync: SyncConfig,
+    #[serde(default)]
+    pub install: InstallConfig,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone)]
@@ -108,6 +106,14 @@ pub(crate) struct SyncConfig {
     /// Additional exclusion patterns (merged with defaults)
     #[serde(default)]
     pub exclusions: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Default, Clone)]
+pub(crate) struct InstallConfig {
+    /// Optional path to the 7-Zip executable (used for NSIS installer extraction).
+    /// Resolution order: --seven-zip CLI flag > this config field > $PATH lookup.
+    #[serde(default)]
+    pub seven_zip: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -151,8 +157,83 @@ pub(crate) fn find_config_file(custom_path: Option<&str>) -> Option<PathBuf> {
     None
 }
 
-pub(crate) fn load_config(path: &Path) -> Result<Config, String> {
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("Failed to read config file: {e}"))?;
-    toml::from_str(&content).map_err(|e| format!("Failed to parse config file: {e}"))
+pub(crate) fn load_config(path: &Path) -> Result<Config> {
+    let content = fs::read_to_string(path).context("Failed to read config file")?;
+    toml::from_str(&content).context("Failed to parse config file")
+}
+
+/// Append a new `[profiles.<name>]` block to the given config file.
+///
+/// Validates the profile name to prevent TOML injection and uses the `toml` crate
+/// to escape path values.
+pub(crate) fn append_profile_to_config(
+    config_path: &Path,
+    name: &str,
+    install_dir: &Path,
+    config_dir: &Path,
+) -> Result<()> {
+    if !is_valid_profile_name(name) {
+        bail!(
+            "Invalid profile name '{name}': must contain only alphanumeric characters, hyphens, and underscores"
+        );
+    }
+
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(config_path)
+        .context("Failed to open config file")?;
+
+    let install_str = install_dir.to_string_lossy();
+    let config_str = config_dir.to_string_lossy();
+    let install_escaped = toml::Value::String(install_str.into_owned());
+    let config_escaped = toml::Value::String(config_str.into_owned());
+
+    let profile_toml = format!(
+        "\n[profiles.{name}]\ninstall_dir = {install_escaped}\nconfig_dir = {config_escaped}\n"
+    );
+
+    use std::io::Write;
+    file.write_all(profile_toml.as_bytes())
+        .context("Failed to write to config file")?;
+
+    println!("  Added profile to: {}", config_path.display());
+
+    Ok(())
+}
+
+/// Remove the `[profiles.<name>]` block from a config file. Returns Ok(()) even if
+/// the profile wasn't present (idempotent).
+///
+/// Implementation: re-read the file, parse with toml, mutate the in-memory Table,
+/// serialize back. This loses comments and exact formatting (TOML round-trip is lossy
+/// for whitespace/comments), but it's safe and predictable.
+pub(crate) fn remove_profile_from_config(config_path: &Path, name: &str) -> Result<()> {
+    if !is_valid_profile_name(name) {
+        bail!(
+            "Invalid profile name '{name}': must contain only alphanumeric characters, hyphens, and underscores"
+        );
+    }
+
+    let content = fs::read_to_string(config_path).context("Failed to read config file")?;
+    let mut doc: toml::Table = content
+        .parse()
+        .context("Failed to parse config file as TOML")?;
+
+    if let Some(profiles_value) = doc.get_mut("profiles")
+        && let Some(profiles_table) = profiles_value.as_table_mut()
+    {
+        profiles_table.remove(name);
+    }
+
+    let serialized = toml::to_string_pretty(&doc).context("Failed to re-serialize config")?;
+    fs::write(config_path, serialized).context("Failed to write updated config file")?;
+    Ok(())
+}
+
+/// Profile name must be non-empty and contain only alphanumerics, hyphens, and underscores.
+pub(crate) fn is_valid_profile_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }

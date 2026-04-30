@@ -1,6 +1,6 @@
 [package]
 name = "bn-loader"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 description = "A profile launcher for Binary Ninja that manages multiple configurations"
 license = "BSD-3-Clause"
@@ -24,5 +24,6 @@ serde_json = "1"
 toml = "0.9"
 globset = "0.4"
 termcolor = "1.4"
-ureq = "3"
-semver = "1"
+anyhow = "1"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tempfile = "3"
