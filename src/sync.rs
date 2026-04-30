@@ -74,7 +74,11 @@ pub(crate) fn run_sync(out: &Output, config: &Config, options: &SyncOptions) -> 
     ));
     out.status("  Targets:");
     for (name, profile) in &targets {
-        out.status(&format!("    - {} ({})", name, profile.config_dir.display()));
+        out.status(&format!(
+            "    - {} ({})",
+            name,
+            profile.config_dir.display()
+        ));
     }
     out.status(&format!("  Items to sync: {}", items.len()));
     out.status(&format!("  Exclusions: {exclusions:?}"));
@@ -122,8 +126,8 @@ pub(crate) fn run_sync(out: &Output, config: &Config, options: &SyncOptions) -> 
 fn build_glob_set(patterns: &[String]) -> Result<GlobSet> {
     let mut builder = GlobSetBuilder::new();
     for pattern in patterns {
-        let glob = Glob::new(pattern)
-            .with_context(|| format!("Invalid glob pattern '{pattern}'"))?;
+        let glob =
+            Glob::new(pattern).with_context(|| format!("Invalid glob pattern '{pattern}'"))?;
         builder.add(glob);
     }
     builder.build().context("Failed to build glob set")
@@ -217,8 +221,8 @@ fn create_backup(target_dir: &Path, items: &[PathBuf]) -> Result<Option<PathBuf>
 }
 
 fn cleanup_old_backups(out: &Output, target_dir: &Path, retention: usize) -> Result<()> {
-    let entries = fs::read_dir(target_dir)
-        .context("Failed to read directory for backup cleanup")?;
+    let entries =
+        fs::read_dir(target_dir).context("Failed to read directory for backup cleanup")?;
 
     let mut backups: Vec<(PathBuf, u64)> = entries
         .filter_map(std::result::Result::ok)
@@ -236,7 +240,7 @@ fn cleanup_old_backups(out: &Output, target_dir: &Path, retention: usize) -> Res
         })
         .collect();
 
-    backups.sort_by(|a, b| b.1.cmp(&a.1));
+    backups.sort_by_key(|b| std::cmp::Reverse(b.1));
 
     for (path, _) in backups.into_iter().skip(retention) {
         if let Err(e) = fs::remove_dir_all(&path) {

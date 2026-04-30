@@ -51,14 +51,18 @@ fn detect_archive_type(archive: &Path) -> Result<ArchiveType> {
             }
             Ok(ArchiveType::NsisExe)
         }
-        Some(other) => bail!(
-            "Unsupported archive extension '.{other}': expected .zip or .exe"
-        ),
+        Some(other) => bail!("Unsupported archive extension '.{other}': expected .zip or .exe"),
         None => bail!("Archive has no extension; cannot detect type"),
     }
 }
 
-fn validate_dest(out: &crate::output::Output, dest: &Path, force: bool, yes: bool, config: &Config) -> Result<()> {
+fn validate_dest(
+    out: &crate::output::Output,
+    dest: &Path,
+    force: bool,
+    yes: bool,
+    config: &Config,
+) -> Result<()> {
     let exists = dest.exists();
     let is_empty = if exists {
         if !dest.is_dir() {
@@ -148,7 +152,11 @@ fn paths_refer_to_same(a: &Path, b: &Path) -> bool {
     a.components().collect::<Vec<_>>() == b.components().collect::<Vec<_>>()
 }
 
-pub(crate) fn run_install(out: &crate::output::Output, config: &Config, options: &InstallOptions) -> Result<()> {
+pub(crate) fn run_install(
+    out: &crate::output::Output,
+    config: &Config,
+    options: &InstallOptions,
+) -> Result<()> {
     let archive_type = detect_archive_type(options.archive)?;
     validate_dest(out, options.dest, options.force, options.yes, config)?;
 
@@ -187,7 +195,10 @@ pub(crate) fn run_install(out: &crate::output::Output, config: &Config, options:
 
     if let Some(plan) = registration_plan {
         fs::create_dir_all(&plan.config_dir).with_context(|| {
-            format!("Failed to create config directory {}", plan.config_dir.display())
+            format!(
+                "Failed to create config directory {}",
+                plan.config_dir.display()
+            )
         })?;
         crate::config::append_profile_to_config(
             options.config_path,
@@ -226,10 +237,7 @@ fn resolve_seven_zip(cli_flag: Option<&Path>, config: &Config) -> Result<PathBuf
         if p.is_file() {
             return Ok(p.to_path_buf());
         }
-        bail!(
-            "--seven-zip path does not point to a file: {}",
-            p.display()
-        );
+        bail!("--seven-zip path does not point to a file: {}", p.display());
     }
 
     if let Some(p) = config.install.seven_zip.as_deref() {
@@ -315,9 +323,8 @@ fn extract_zip(out: &crate::output::Output, archive: &Path, dest: &Path) -> Resu
         let out_path = dest.join(&relative);
 
         if entry.is_dir() {
-            fs::create_dir_all(&out_path).with_context(|| {
-                format!("Failed to create directory {}", out_path.display())
-            })?;
+            fs::create_dir_all(&out_path)
+                .with_context(|| format!("Failed to create directory {}", out_path.display()))?;
             continue;
         }
 
@@ -360,9 +367,9 @@ fn detect_zip_strip_prefix(zip: &mut zip::ZipArchive<fs::File>) -> Result<Option
     let mut top_level_appears_as_file = false;
 
     for i in 0..zip.len() {
-        let entry = zip
-            .by_index(i)
-            .with_context(|| format!("Failed to read entry {i} while detecting top-level prefix"))?;
+        let entry = zip.by_index(i).with_context(|| {
+            format!("Failed to read entry {i} while detecting top-level prefix")
+        })?;
         let Some(name) = entry.enclosed_name() else {
             continue;
         };
@@ -429,7 +436,12 @@ fn is_nsis_artifact(top_name: &str) -> bool {
 /// 2. Walk the temp dir's top-level entries, filter out NSIS-only artifacts
 ///    (see `is_nsis_artifact`), and move the survivors into `dest`.
 /// 3. Clean up the temp directory (handled by `tempfile::TempDir`'s Drop impl).
-fn extract_nsis(out: &crate::output::Output, archive: &Path, dest: &Path, seven_zip: &Path) -> Result<()> {
+fn extract_nsis(
+    out: &crate::output::Output,
+    archive: &Path,
+    dest: &Path,
+    seven_zip: &Path,
+) -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("bn-loader-install-")
         .tempdir()
@@ -459,9 +471,8 @@ fn extract_nsis(out: &crate::output::Output, archive: &Path, dest: &Path, seven_
         );
     }
 
-    fs::create_dir_all(dest).with_context(|| {
-        format!("Failed to create destination directory {}", dest.display())
-    })?;
+    fs::create_dir_all(dest)
+        .with_context(|| format!("Failed to create destination directory {}", dest.display()))?;
 
     let mut moved = 0usize;
     let mut skipped: Vec<String> = Vec::new();
@@ -485,13 +496,11 @@ fn extract_nsis(out: &crate::output::Output, archive: &Path, dest: &Path, seven_
         // so rename-or-copy semantics are predictable.
         if dst_path.exists() {
             if dst_path.is_dir() {
-                fs::remove_dir_all(&dst_path).with_context(|| {
-                    format!("Failed to remove existing {}", dst_path.display())
-                })?;
+                fs::remove_dir_all(&dst_path)
+                    .with_context(|| format!("Failed to remove existing {}", dst_path.display()))?;
             } else {
-                fs::remove_file(&dst_path).with_context(|| {
-                    format!("Failed to remove existing {}", dst_path.display())
-                })?;
+                fs::remove_file(&dst_path)
+                    .with_context(|| format!("Failed to remove existing {}", dst_path.display()))?;
             }
         }
 
@@ -509,7 +518,11 @@ fn extract_nsis(out: &crate::output::Output, archive: &Path, dest: &Path, seven_
                         })?;
                     }
                     fs::copy(&src_path, &dst_path).with_context(|| {
-                        format!("Failed to copy {} to {}", src_path.display(), dst_path.display())
+                        format!(
+                            "Failed to copy {} to {}",
+                            src_path.display(),
+                            dst_path.display()
+                        )
                     })?;
                 }
             }

@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
 use crate::config::Profile;
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -167,9 +167,15 @@ fn read_repo_plugins(status_file: &Path) -> Result<Vec<PluginInfo>> {
     Ok(plugins)
 }
 
-pub(crate) fn print_plugins(out: &crate::output::Output, profile_name: &str, plugins: &[PluginInfo]) {
+pub(crate) fn print_plugins(
+    out: &crate::output::Output,
+    profile_name: &str,
+    plugins: &[PluginInfo],
+) {
     if plugins.is_empty() {
-        out.status(&format!("No plugins installed for profile '{profile_name}'"));
+        out.status(&format!(
+            "No plugins installed for profile '{profile_name}'"
+        ));
         return;
     }
 
@@ -200,7 +206,10 @@ pub(crate) fn print_plugins(out: &crate::output::Output, profile_name: &str, plu
     }
 
     if !community.is_empty() {
-        out.heading(&format!("\n  [Community Repository] ({}):", community.len()));
+        out.heading(&format!(
+            "\n  [Community Repository] ({}):",
+            community.len()
+        ));
         for plugin in &community {
             print_plugin_line(out, plugin);
         }

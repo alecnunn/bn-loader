@@ -36,7 +36,11 @@ pub(crate) fn run_remove(
         out.warn(&format!(
             "install_dir is shared with {} other profile(s): {}",
             install_users.len(),
-            install_users.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+            install_users
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
 
@@ -50,25 +54,43 @@ pub(crate) fn run_remove(
         out.warn(&format!(
             "config_dir is shared with {} other profile(s): {}",
             cfg_users.len(),
-            cfg_users.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+            cfg_users
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
 
     if options.purge {
-        out.warn(&format!("--purge: will delete config_dir {}", profile.config_dir.display()));
+        out.warn(&format!(
+            "--purge: will delete config_dir {}",
+            profile.config_dir.display()
+        ));
         if options.force {
-            out.warn(&format!("--purge --force: will also delete install_dir {}", profile.install_dir.display()));
+            out.warn(&format!(
+                "--purge --force: will also delete install_dir {}",
+                profile.install_dir.display()
+            ));
         }
         if !cfg_users.is_empty() {
             bail!(
                 "Cannot --purge config_dir: it's shared with other profiles ({}). Remove those first or skip --purge.",
-                cfg_users.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+                cfg_users
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
         }
         if options.force && !install_users.is_empty() {
             bail!(
                 "Cannot --purge --force install_dir: it's shared with other profiles ({}). Remove those first or skip --force.",
-                install_users.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+                install_users
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
         }
     }
@@ -86,13 +108,19 @@ pub(crate) fn run_remove(
     if options.purge {
         if profile.config_dir.exists() {
             std::fs::remove_dir_all(&profile.config_dir).with_context(|| {
-                format!("Failed to delete config_dir {}", profile.config_dir.display())
+                format!(
+                    "Failed to delete config_dir {}",
+                    profile.config_dir.display()
+                )
             })?;
             out.status(&format!("  Deleted: {}", profile.config_dir.display()));
         }
         if options.force && profile.install_dir.exists() {
             std::fs::remove_dir_all(&profile.install_dir).with_context(|| {
-                format!("Failed to delete install_dir {}", profile.install_dir.display())
+                format!(
+                    "Failed to delete install_dir {}",
+                    profile.install_dir.display()
+                )
             })?;
             out.status(&format!("  Deleted: {}", profile.install_dir.display()));
         }

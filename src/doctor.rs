@@ -24,7 +24,10 @@ pub(crate) fn run_doctor(out: &Output, config: &Config) -> Result<i32> {
 
         checks += 1;
         match check_dir(&profile.install_dir) {
-            Status::Ok => out.success(&format!("  [OK]   install_dir: {}", profile.install_dir.display())),
+            Status::Ok => out.success(&format!(
+                "  [OK]   install_dir: {}",
+                profile.install_dir.display()
+            )),
             Status::Warn(msg) => {
                 out.warn(&format!("  [WARN] install_dir: {msg}"));
                 warnings += 1;
@@ -40,13 +43,19 @@ pub(crate) fn run_doctor(out: &Output, config: &Config) -> Result<i32> {
         if exe_path.is_file() {
             out.success(&format!("  [OK]   executable: {}", exe_path.display()));
         } else {
-            out.warn(&format!("  [FAIL] executable: not found at {}", exe_path.display()));
+            out.warn(&format!(
+                "  [FAIL] executable: not found at {}",
+                exe_path.display()
+            ));
             failures += 1;
         }
 
         checks += 1;
         match check_dir(&profile.config_dir) {
-            Status::Ok => out.success(&format!("  [OK]   config_dir: {}", profile.config_dir.display())),
+            Status::Ok => out.success(&format!(
+                "  [OK]   config_dir: {}",
+                profile.config_dir.display()
+            )),
             Status::Warn(msg) => {
                 out.warn(&format!("  [WARN] config_dir: {msg}"));
                 warnings += 1;
@@ -63,9 +72,15 @@ pub(crate) fn run_doctor(out: &Output, config: &Config) -> Result<i32> {
     checks += 1;
     if let Some(seven_zip) = &config.install.seven_zip {
         if seven_zip.is_file() {
-            out.success(&format!("  [OK]   [install] seven_zip: {}", seven_zip.display()));
+            out.success(&format!(
+                "  [OK]   [install] seven_zip: {}",
+                seven_zip.display()
+            ));
         } else {
-            out.warn(&format!("  [FAIL] [install] seven_zip: not a file: {}", seven_zip.display()));
+            out.warn(&format!(
+                "  [FAIL] [install] seven_zip: not a file: {}",
+                seven_zip.display()
+            ));
             failures += 1;
         }
     } else {

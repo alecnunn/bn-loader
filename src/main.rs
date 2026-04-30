@@ -24,10 +24,10 @@ use init::{InitOptions, run_init};
 use install::{InstallOptions, run_install};
 use launch::{LaunchOptions, launch_profile};
 use plugins::{list_plugins, print_plugins};
+use remove::{RemoveOptions, run_remove};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process;
-use remove::{RemoveOptions, run_remove};
 use sync::{SyncOptions, run_sync};
 use update::{UpdateOptions, run_update};
 
@@ -40,7 +40,10 @@ fn profile_completer() -> Vec<CompletionCandidate> {
 }
 
 /// CLI flag wins over config; config wins over the default (Auto).
-fn effective_color(cli_color: Option<config::ColorMode>, config_color: config::ColorMode) -> config::ColorMode {
+fn effective_color(
+    cli_color: Option<config::ColorMode>,
+    config_color: config::ColorMode,
+) -> config::ColorMode {
     cli_color.unwrap_or(config_color)
 }
 
@@ -324,11 +327,7 @@ fn main() {
     }
 }
 
-fn dispatch_profile(
-    config: &Config,
-    config_path: &Path,
-    subcommand: ProfileCommand,
-) -> ! {
+fn dispatch_profile(config: &Config, config_path: &Path, subcommand: ProfileCommand) -> ! {
     let out = output::Output::new(config.global.color);
     match subcommand {
         ProfileCommand::List => {
@@ -336,7 +335,11 @@ fn dispatch_profile(
             process::exit(0);
         }
         ProfileCommand::Init {
-            name, template, config_dir, dry_run, yes,
+            name,
+            template,
+            config_dir,
+            dry_run,
+            yes,
         } => {
             let expanded_config_dir = if config_dir.is_relative() {
                 env::current_dir()
@@ -352,10 +355,18 @@ fn dispatch_profile(
                 dry_run,
                 yes,
             };
-            report_and_exit(run_init(&out, config, config_path, &options), config.global.debug);
+            report_and_exit(
+                run_init(&out, config, config_path, &options),
+                config.global.debug,
+            );
         }
         ProfileCommand::Sync {
-            from, to, exclude, dry_run, yes, force,
+            from,
+            to,
+            exclude,
+            dry_run,
+            yes,
+            force,
         } => {
             let extra_exclusions: Vec<&str> =
                 exclude.iter().map(std::string::String::as_str).collect();
@@ -386,7 +397,15 @@ fn dispatch_profile(
             report_and_exit(result, config.global.debug);
         }
         ProfileCommand::Install {
-            archive, dest, name, config_dir, no_register, force, yes, dry_run, seven_zip,
+            archive,
+            dest,
+            name,
+            config_dir,
+            no_register,
+            force,
+            yes,
+            dry_run,
+            seven_zip,
         } => {
             let options = InstallOptions {
                 archive: &archive,
@@ -402,7 +421,13 @@ fn dispatch_profile(
             };
             report_and_exit(run_install(&out, config, &options), config.global.debug);
         }
-        ProfileCommand::Remove { name, purge, force, yes, dry_run } => {
+        ProfileCommand::Remove {
+            name,
+            purge,
+            force,
+            yes,
+            dry_run,
+        } => {
             let options = RemoveOptions {
                 name: &name,
                 purge,
@@ -410,9 +435,18 @@ fn dispatch_profile(
                 yes,
                 dry_run,
             };
-            report_and_exit(run_remove(&out, config, config_path, &options), config.global.debug);
+            report_and_exit(
+                run_remove(&out, config, config_path, &options),
+                config.global.debug,
+            );
         }
-        ProfileCommand::Update { name, archive, yes, dry_run, seven_zip } => {
+        ProfileCommand::Update {
+            name,
+            archive,
+            yes,
+            dry_run,
+            seven_zip,
+        } => {
             let options = UpdateOptions {
                 name: &name,
                 archive: &archive,
@@ -420,7 +454,10 @@ fn dispatch_profile(
                 dry_run,
                 seven_zip: seven_zip.as_deref(),
             };
-            report_and_exit(run_update(&out, config, config_path, &options), config.global.debug);
+            report_and_exit(
+                run_update(&out, config, config_path, &options),
+                config.global.debug,
+            );
         }
     }
 }

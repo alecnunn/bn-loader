@@ -41,7 +41,10 @@ pub(crate) fn run_init(
 
     out.heading(&format!("Initializing profile '{}'...", options.name));
     out.status(&format!("  Template:    {}", options.template));
-    out.status(&format!("  Install dir: {}", template_profile.install_dir.display()));
+    out.status(&format!(
+        "  Install dir: {}",
+        template_profile.install_dir.display()
+    ));
     out.status(&format!("  Config dir:  {}", options.config_dir.display()));
 
     if options.dry_run {
@@ -77,8 +80,14 @@ pub(crate) fn run_init(
         options.config_dir,
     )?;
 
-    out.success(&format!("\nProfile '{}' initialized successfully.", options.name));
-    out.status(&format!("You can now launch it with: bn-loader {}", options.name));
+    out.success(&format!(
+        "\nProfile '{}' initialized successfully.",
+        options.name
+    ));
+    out.status(&format!(
+        "You can now launch it with: bn-loader {}",
+        options.name
+    ));
 
     Ok(())
 }

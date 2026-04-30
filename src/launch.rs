@@ -85,7 +85,10 @@ fn launch_debug(
         .context("Failed to launch Binary Ninja")?;
 
     out.success(&format!("\nBinary Ninja launched (PID: {}).", child.id()));
-    out.status(&format!("Debug logs will be written to: {}", log_path.display()));
+    out.status(&format!(
+        "Debug logs will be written to: {}",
+        log_path.display()
+    ));
 
     #[cfg(windows)]
     out.status(&format!(

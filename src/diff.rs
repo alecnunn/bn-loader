@@ -173,7 +173,10 @@ fn diff_settings(
                     out.out_colored(&format!("  {}", diff.text), color);
                 }
                 if diffs.len() > MAX_DIFF_DISPLAY {
-                    out.out(&format!("  ... and {} more", diffs.len() - MAX_DIFF_DISPLAY));
+                    out.out(&format!(
+                        "  ... and {} more",
+                        diffs.len() - MAX_DIFF_DISPLAY
+                    ));
                 }
             }
         }
@@ -191,7 +194,11 @@ fn diff_json_objects(v1: &Value, v2: &Value, prefix: &str) -> Vec<DiffEntry> {
             let keys2: HashSet<_> = o2.keys().collect();
 
             for key in keys1.difference(&keys2) {
-                let path = if prefix.is_empty() { (*key).clone() } else { format!("{prefix}.{key}") };
+                let path = if prefix.is_empty() {
+                    (*key).clone()
+                } else {
+                    format!("{prefix}.{key}")
+                };
                 diffs.push(DiffEntry {
                     kind: DiffKind::Removed,
                     text: format!("- {path} (only in first)"),
@@ -199,7 +206,11 @@ fn diff_json_objects(v1: &Value, v2: &Value, prefix: &str) -> Vec<DiffEntry> {
             }
 
             for key in keys2.difference(&keys1) {
-                let path = if prefix.is_empty() { (*key).clone() } else { format!("{prefix}.{key}") };
+                let path = if prefix.is_empty() {
+                    (*key).clone()
+                } else {
+                    format!("{prefix}.{key}")
+                };
                 diffs.push(DiffEntry {
                     kind: DiffKind::Added,
                     text: format!("+ {path} (only in second)"),
@@ -207,7 +218,11 @@ fn diff_json_objects(v1: &Value, v2: &Value, prefix: &str) -> Vec<DiffEntry> {
             }
 
             for key in keys1.intersection(&keys2) {
-                let path = if prefix.is_empty() { (*key).clone() } else { format!("{prefix}.{key}") };
+                let path = if prefix.is_empty() {
+                    (*key).clone()
+                } else {
+                    format!("{prefix}.{key}")
+                };
                 diffs.extend(diff_json_objects(&o1[*key], &o2[*key], &path));
             }
         }

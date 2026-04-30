@@ -215,7 +215,9 @@ pub(crate) fn remove_profile_from_config(config_path: &Path, name: &str) -> Resu
     }
 
     let content = fs::read_to_string(config_path).context("Failed to read config file")?;
-    let mut doc: toml::Table = content.parse().context("Failed to parse config file as TOML")?;
+    let mut doc: toml::Table = content
+        .parse()
+        .context("Failed to parse config file as TOML")?;
 
     if let Some(profiles_value) = doc.get_mut("profiles")
         && let Some(profiles_table) = profiles_value.as_table_mut()
