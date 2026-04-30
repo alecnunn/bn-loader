@@ -1,4 +1,5 @@
 use crate::config::{ENV_VAR_NAME, Profile};
+use anyhow::{Context, Result, anyhow};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -11,25 +12,26 @@ pub(crate) struct LaunchOptions<'a> {
 }
 
 pub(crate) fn launch_profile(
+    out: &crate::output::Output,
     name: &str,
     profile: &Profile,
     options: &LaunchOptions,
-) -> Result<(), String> {
+) -> Result<()> {
     let exe_path = profile.install_dir.join(&profile.executable);
 
     if !profile.install_dir.exists() {
-        return Err(format!(
+        return Err(anyhow!(
             "Install directory does not exist: {}",
             profile.install_dir.display()
         ));
     }
 
     if !exe_path.exists() {
-        return Err(format!("Executable not found: {}", exe_path.display()));
+        return Err(anyhow!("Executable not found: {}", exe_path.display()));
     }
 
     if !profile.config_dir.exists() {
-        return Err(format!(
+        return Err(anyhow!(
             "Config directory does not exist: {}",
             profile.config_dir.display()
         ));
@@ -37,35 +39,40 @@ pub(crate) fn launch_profile(
 
     let use_debug = options.debug || profile.debug;
 
-    println!("Launching profile '{name}'...");
-    println!("  Install dir: {}", profile.install_dir.display());
-    println!("  Config dir:  {}", profile.config_dir.display());
-    println!("  Executable:  {}", profile.executable);
+    out.heading(&format!("Launching profile '{name}'..."));
+    out.status(&format!("  Install dir: {}", profile.install_dir.display()));
+    out.status(&format!("  Config dir:  {}", profile.config_dir.display()));
+    out.status(&format!("  Executable:  {}", profile.executable));
 
     if use_debug {
-        launch_debug(profile, &exe_path, options)
+        launch_debug(out, profile, &exe_path, options)
     } else {
         launch_normal(profile, &exe_path)
     }
 }
 
-fn launch_normal(profile: &Profile, exe_path: &Path) -> Result<(), String> {
+fn launch_normal(profile: &Profile, exe_path: &Path) -> Result<()> {
     Command::new(exe_path)
         .current_dir(&profile.install_dir)
         .env(ENV_VAR_NAME, &profile.config_dir)
         .spawn()
-        .map_err(|e| format!("Failed to launch Binary Ninja: {e}"))?;
+        .context("Failed to launch Binary Ninja")?;
     Ok(())
 }
 
-fn launch_debug(profile: &Profile, exe_path: &Path, options: &LaunchOptions) -> Result<(), String> {
+fn launch_debug(
+    out: &crate::output::Output,
+    profile: &Profile,
+    exe_path: &Path,
+    options: &LaunchOptions,
+) -> Result<()> {
     let log_path = options
         .log_file
         .cloned()
         .unwrap_or_else(|| profile.config_dir.join(DEBUG_LOG_FILENAME));
 
-    println!("  Debug mode: enabled");
-    println!("  Log file:   {}", log_path.display());
+    out.status("  Debug mode: enabled");
+    out.status(&format!("  Log file:   {}", log_path.display()));
 
     // Use Binary Ninja's native debug flags: -d for debug mode, -l for log file
     let child = Command::new(exe_path)
@@ -75,19 +82,19 @@ fn launch_debug(profile: &Profile, exe_path: &Path, options: &LaunchOptions) -> 
         .arg("-l")
         .arg(&log_path)
         .spawn()
-        .map_err(|e| format!("Failed to launch Binary Ninja: {e}"))?;
+        .context("Failed to launch Binary Ninja")?;
 
-    println!("\nBinary Ninja launched (PID: {}).", child.id());
-    println!("Debug logs will be written to: {}", log_path.display());
+    out.success(&format!("\nBinary Ninja launched (PID: {}).", child.id()));
+    out.status(&format!("Debug logs will be written to: {}", log_path.display()));
 
     #[cfg(windows)]
-    println!(
+    out.status(&format!(
         "\nTo monitor: Get-Content -Path \"{}\" -Wait",
         log_path.display()
-    );
+    ));
 
     #[cfg(not(windows))]
-    println!("\nTo monitor: tail -f \"{}\"", log_path.display());
+    out.status(&format!("\nTo monitor: tail -f \"{}\"", log_path.display()));
 
     Ok(())
 }

@@ -1,25 +1,35 @@
-mod colors;
+mod cli;
 mod completions;
 mod config;
 mod diff;
+mod doctor;
+mod fs_util;
 mod init;
+mod install;
 mod launch;
+mod output;
 mod plugins;
+mod remove;
 mod sync;
 mod update;
 
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::CompleteEnv;
 use clap_complete::engine::{ArgValueCandidates, CompletionCandidate};
+use cli::{report_and_exit, resolve_profile};
 use config::{CONFIG_FILE_NAME, Config, find_config_file, load_config};
 use diff::diff_profiles;
+use doctor::run_doctor;
 use init::{InitOptions, run_init};
+use install::{InstallOptions, run_install};
 use launch::{LaunchOptions, launch_profile};
 use plugins::{list_plugins, print_plugins};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process;
+use remove::{RemoveOptions, run_remove};
 use sync::{SyncOptions, run_sync};
+use update::{UpdateOptions, run_update};
 
 /// Get profile names from config for shell completion
 fn profile_completer() -> Vec<CompletionCandidate> {
@@ -27,6 +37,11 @@ fn profile_completer() -> Vec<CompletionCandidate> {
         .and_then(|p| load_config(&p).ok())
         .map(|c| c.profiles.keys().map(CompletionCandidate::new).collect())
         .unwrap_or_default()
+}
+
+/// CLI flag wins over config; config wins over the default (Auto).
+fn effective_color(cli_color: Option<config::ColorMode>, config_color: config::ColorMode) -> config::ColorMode {
+    cli_color.unwrap_or(config_color)
 }
 
 #[derive(Parser)]
@@ -38,6 +53,10 @@ struct Cli {
     /// Use a specific config file
     #[arg(long, short = 'c', global = true)]
     config: Option<PathBuf>,
+
+    /// Color output mode (overrides [global] color in config)
+    #[arg(long, value_enum, global = true)]
+    color: Option<config::ColorMode>,
 
     /// List available profiles
     #[arg(long, short = 'l')]
@@ -54,74 +73,128 @@ struct Cli {
     /// Write debug output to file
     #[arg(long)]
     log_file: Option<PathBuf>,
-
-    /// Check for updates and exit
-    #[arg(long)]
-    check_update: bool,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Create a new profile from a template
-    Init {
-        /// Name for the new profile
-        name: String,
-
-        /// Source profile for license and `install_dir`
-        #[arg(long, add = ArgValueCandidates::new(profile_completer))]
-        template: String,
-
-        /// Directory for new profile's config
-        #[arg(long)]
-        config_dir: PathBuf,
+    /// Profile management commands (init, install, sync, diff, plugins, list)
+    Profile {
+        #[command(subcommand)]
+        subcommand: ProfileCommand,
     },
 
-    /// Sync config between profiles
-    Sync {
-        /// Source profile to sync from
-        #[arg(long, add = ArgValueCandidates::new(profile_completer))]
-        from: String,
-
-        /// Target profile (default: all other profiles)
-        #[arg(long, add = ArgValueCandidates::new(profile_completer))]
-        to: Option<String>,
-
-        /// Additional exclusion pattern (can be repeated)
-        #[arg(long, action = clap::ArgAction::Append)]
-        exclude: Vec<String>,
-
-        /// Show what would be synced without changes
-        #[arg(long)]
-        dry_run: bool,
-
-        /// Skip confirmation prompt
-        #[arg(long, short)]
-        yes: bool,
-    },
-
-    /// List plugins for a profile
-    Plugins {
-        /// Profile name
-        #[arg(add = ArgValueCandidates::new(profile_completer))]
-        profile: String,
-    },
-
-    /// Compare two profiles
-    Diff {
-        /// First profile
-        #[arg(add = ArgValueCandidates::new(profile_completer))]
-        profile1: String,
-
-        /// Second profile
-        #[arg(add = ArgValueCandidates::new(profile_completer))]
-        profile2: String,
-    },
+    /// Validate the whole config (read-only)
+    Doctor,
 
     /// Generate shell completions
     Completions {
         /// Shell type
         #[arg(value_enum)]
         shell: ShellType,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProfileCommand {
+    /// List available profiles
+    List,
+
+    /// Create a new profile from a template
+    Init {
+        name: String,
+        #[arg(long, add = ArgValueCandidates::new(profile_completer))]
+        template: String,
+        #[arg(long)]
+        config_dir: PathBuf,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+
+    /// Sync config between profiles
+    Sync {
+        #[arg(long, add = ArgValueCandidates::new(profile_completer))]
+        from: String,
+        #[arg(long, add = ArgValueCandidates::new(profile_completer))]
+        to: Option<String>,
+        #[arg(long, action = clap::ArgAction::Append)]
+        exclude: Vec<String>,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long, short = 'y')]
+        yes: bool,
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// List plugins for a profile
+    Plugins {
+        #[arg(add = ArgValueCandidates::new(profile_completer))]
+        profile: String,
+    },
+
+    /// Compare two profiles
+    Diff {
+        #[arg(add = ArgValueCandidates::new(profile_completer))]
+        profile1: String,
+        #[arg(add = ArgValueCandidates::new(profile_completer))]
+        profile2: String,
+    },
+
+    /// Install Binary Ninja from an archive and register a profile
+    Install {
+        archive: PathBuf,
+        #[arg(long)]
+        dest: PathBuf,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        config_dir: Option<PathBuf>,
+        #[arg(long, conflicts_with_all = ["name", "config_dir"])]
+        no_register: bool,
+        #[arg(long, short = 'f')]
+        force: bool,
+        #[arg(long, short = 'y')]
+        yes: bool,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        seven_zip: Option<PathBuf>,
+    },
+
+    /// Remove a profile (deregister from config; --purge to also delete on-disk dirs)
+    Remove {
+        #[arg(add = ArgValueCandidates::new(profile_completer))]
+        name: String,
+        /// Also delete the profile's config_dir on disk
+        #[arg(long)]
+        purge: bool,
+        /// With --purge, also delete the profile's install_dir
+        #[arg(long, short = 'f')]
+        force: bool,
+        /// Skip the confirmation prompt
+        #[arg(long, short = 'y')]
+        yes: bool,
+        /// Print what would be removed and exit
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Re-extract Binary Ninja into an existing profile's install_dir
+    Update {
+        #[arg(add = ArgValueCandidates::new(profile_completer))]
+        name: String,
+        archive: PathBuf,
+        /// Skip interactive confirmation prompts
+        #[arg(long, short = 'y')]
+        yes: bool,
+        /// Print plan and exit without making changes
+        #[arg(long)]
+        dry_run: bool,
+        /// Override 7z executable path (for NSIS .exe extraction)
+        #[arg(long)]
+        seven_zip: Option<PathBuf>,
     },
 }
 
@@ -133,10 +206,10 @@ pub enum ShellType {
     Fish,
 }
 
-fn list_profiles_cmd(config: &Config) {
-    println!("Available profiles:");
+fn list_profiles_cmd(out: &output::Output, config: &Config) {
+    out.heading("Available profiles:");
     for (name, profile) in &config.profiles {
-        println!("  {} -> {}", name, profile.install_dir.display());
+        out.out(&format!("  {} -> {}", name, profile.install_dir.display()));
     }
 }
 
@@ -190,131 +263,39 @@ fn main() {
         return;
     }
 
-    // Manual update check (doesn't require config)
-    if cli.check_update {
-        println!("Checking for updates...");
-        println!("Current version: {}", env!("CARGO_PKG_VERSION"));
-        match update::check_for_updates_forced() {
-            Some(info) => {
-                println!("Update available: v{} -> v{}", info.current, info.latest);
-                println!("Download: {}", info.url);
-            }
-            None => {
-                println!("You're on the latest version.");
-            }
-        }
-        return;
-    }
-
     // All other commands need config
-    let (config_path, config) = load_config_or_exit(cli.config.as_deref());
-
-    // Check for updates (non-blocking, silent on error)
-    if config.global.check_updates
-        && let Some(update_info) = update::check_for_updates()
-    {
-        update::print_update_notice(&update_info);
-    }
+    let (config_path, mut config) = load_config_or_exit(cli.config.as_deref());
+    config.global.color = effective_color(cli.color, config.global.color);
 
     if cli.list {
-        list_profiles_cmd(&config);
+        let out = output::Output::new(config.global.color);
+        list_profiles_cmd(&out, &config);
         return;
     }
 
     match cli.command {
-        Some(Commands::Init {
-            name,
-            template,
-            config_dir,
-        }) => {
-            let expanded_config_dir = if config_dir.is_relative() {
-                env::current_dir()
-                    .map(|cwd| cwd.join(&config_dir))
-                    .unwrap_or(config_dir)
-            } else {
-                config_dir
-            };
-
-            let options = InitOptions {
-                name: &name,
-                template: &template,
-                config_dir: &expanded_config_dir,
-            };
-            if let Err(e) = run_init(&config, &config_path, &options) {
-                eprintln!("Error: {e}");
-                process::exit(1);
-            }
+        Some(Commands::Profile { subcommand }) => {
+            dispatch_profile(&config, &config_path, subcommand);
         }
-
-        Some(Commands::Sync {
-            from,
-            to,
-            exclude,
-            dry_run,
-            yes,
-        }) => {
-            let extra_exclusions: Vec<&str> =
-                exclude.iter().map(std::string::String::as_str).collect();
-            let options = SyncOptions {
-                from: &from,
-                to: to.as_deref(),
-                extra_exclusions,
-                dry_run,
-                yes,
-                backup_retention: config.global.backup_retention,
-            };
-            if let Err(e) = run_sync(&config, &options) {
-                eprintln!("Error: {e}");
-                process::exit(1);
-            }
-        }
-
-        Some(Commands::Plugins { profile }) => {
-            let prof = if let Some(p) = config.profiles.get(&profile) {
-                p
-            } else {
-                eprintln!("Error: Profile '{profile}' not found.");
-                process::exit(1);
-            };
-            match list_plugins(prof) {
-                Ok(plugins) => print_plugins(&profile, &plugins),
+        Some(Commands::Doctor) => {
+            let out = output::Output::new(config.global.color);
+            match run_doctor(&out, &config) {
+                Ok(code) => process::exit(code),
                 Err(e) => {
                     eprintln!("Error: {e}");
                     process::exit(1);
                 }
             }
         }
-
-        Some(Commands::Diff { profile1, profile2 }) => {
-            let prof1 = if let Some(p) = config.profiles.get(&profile1) {
-                p
-            } else {
-                eprintln!("Error: Profile '{profile1}' not found.");
-                process::exit(1);
-            };
-            let prof2 = if let Some(p) = config.profiles.get(&profile2) {
-                p
-            } else {
-                eprintln!("Error: Profile '{profile2}' not found.");
-                process::exit(1);
-            };
-            if let Err(e) = diff_profiles(&profile1, prof1, &profile2, prof2) {
-                eprintln!("Error: {e}");
-                process::exit(1);
-            }
-        }
-
         Some(Commands::Completions { .. }) => {
             // Already handled above
             unreachable!()
         }
-
         None => {
             // Launch profile mode
             let name = match cli.profile {
                 Some(n) => n,
                 None => {
-                    // Try default profile from global config
                     if let Some(default) = &config.global.default_profile {
                         default.clone()
                     } else {
@@ -328,25 +309,118 @@ fn main() {
                 }
             };
 
-            let profile = if let Some(p) = config.profiles.get(&name) {
-                p
-            } else {
-                eprintln!("Error: Profile '{name}' not found.");
-                eprintln!("Use --list to see available profiles.");
-                process::exit(1);
-            };
-
-            // Combine CLI debug flag with global debug setting
             let use_debug = cli.debug || config.global.debug;
+            let log_file = cli.log_file.clone();
+            let out = output::Output::new(config.global.color);
+            let result = resolve_profile(&config, &name).and_then(|profile| {
+                let options = LaunchOptions {
+                    debug: use_debug,
+                    log_file: log_file.as_ref(),
+                };
+                launch_profile(&out, &name, profile, &options)
+            });
+            report_and_exit(result, use_debug);
+        }
+    }
+}
 
-            let options = LaunchOptions {
-                debug: use_debug,
-                log_file: cli.log_file.as_ref(),
+fn dispatch_profile(
+    config: &Config,
+    config_path: &Path,
+    subcommand: ProfileCommand,
+) -> ! {
+    let out = output::Output::new(config.global.color);
+    match subcommand {
+        ProfileCommand::List => {
+            list_profiles_cmd(&out, config);
+            process::exit(0);
+        }
+        ProfileCommand::Init {
+            name, template, config_dir, dry_run, yes,
+        } => {
+            let expanded_config_dir = if config_dir.is_relative() {
+                env::current_dir()
+                    .map(|cwd| cwd.join(&config_dir))
+                    .unwrap_or(config_dir)
+            } else {
+                config_dir
             };
-            if let Err(e) = launch_profile(&name, profile, &options) {
-                eprintln!("Error: {e}");
-                process::exit(1);
-            }
+            let options = InitOptions {
+                name: &name,
+                template: &template,
+                config_dir: &expanded_config_dir,
+                dry_run,
+                yes,
+            };
+            report_and_exit(run_init(&out, config, config_path, &options), config.global.debug);
+        }
+        ProfileCommand::Sync {
+            from, to, exclude, dry_run, yes, force,
+        } => {
+            let extra_exclusions: Vec<&str> =
+                exclude.iter().map(std::string::String::as_str).collect();
+            let options = SyncOptions {
+                from: &from,
+                to: to.as_deref(),
+                extra_exclusions,
+                dry_run,
+                yes,
+                force,
+                backup_retention: config.global.backup_retention,
+            };
+            report_and_exit(run_sync(&out, config, &options), config.global.debug);
+        }
+        ProfileCommand::Plugins { profile } => {
+            let result = resolve_profile(config, &profile).and_then(|prof| {
+                let plugins = list_plugins(prof)?;
+                print_plugins(&out, &profile, &plugins);
+                Ok(())
+            });
+            report_and_exit(result, config.global.debug);
+        }
+        ProfileCommand::Diff { profile1, profile2 } => {
+            let result = resolve_profile(config, &profile1).and_then(|prof1| {
+                let prof2 = resolve_profile(config, &profile2)?;
+                diff_profiles(config, &profile1, prof1, &profile2, prof2)
+            });
+            report_and_exit(result, config.global.debug);
+        }
+        ProfileCommand::Install {
+            archive, dest, name, config_dir, no_register, force, yes, dry_run, seven_zip,
+        } => {
+            let options = InstallOptions {
+                archive: &archive,
+                dest: &dest,
+                name: name.as_deref(),
+                config_dir: config_dir.as_deref(),
+                no_register,
+                force,
+                yes,
+                dry_run,
+                seven_zip: seven_zip.as_deref(),
+                config_path,
+            };
+            report_and_exit(run_install(&out, config, &options), config.global.debug);
+        }
+        ProfileCommand::Remove { name, purge, force, yes, dry_run } => {
+            let options = RemoveOptions {
+                name: &name,
+                purge,
+                force,
+                yes,
+                dry_run,
+            };
+            report_and_exit(run_remove(&out, config, config_path, &options), config.global.debug);
+        }
+        ProfileCommand::Update { name, archive, yes, dry_run, seven_zip } => {
+            let options = UpdateOptions {
+                name: &name,
+                archive: &archive,
+                yes,
+                dry_run,
+                seven_zip: seven_zip.as_deref(),
+            };
+            report_and_exit(run_update(&out, config, config_path, &options), config.global.debug);
         }
     }
 }

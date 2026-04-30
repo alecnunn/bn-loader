@@ -10,7 +10,6 @@
 [global]
 # default_profile = "personal"  # Launch this profile when no argument given
 # color = "auto"                # Color output: "auto", "always", "never"
-# check_updates = true          # Check for updates on launch
 # backup_retention = 5          # Keep this many sync backups (0 = unlimited)
 # debug = false                 # Enable debug logging globally
 
@@ -25,6 +24,20 @@
 #
 # [sync]
 # exclusions = ["my-custom-dir/", "*.tmp"]
+
+# ============================================================================
+# Install Settings (optional)
+# ============================================================================
+#
+# Used by `bn-loader install <archive>`. Currently only seven_zip is configurable.
+#
+# seven_zip: optional path to 7-Zip's executable, used to extract Windows NSIS
+# installer .exe files. Resolution order: --seven-zip CLI flag, then this
+# config field, then $PATH lookup. If you have 7-Zip in a non-standard location,
+# set it here so you don't have to pass --seven-zip every time.
+#
+# [install]
+# seven_zip = "C:\\Program Files\\7-Zip\\7z.exe"
 
 # ============================================================================
 # Profile Examples
