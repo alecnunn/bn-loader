@@ -10,6 +10,7 @@ mod launch;
 mod output;
 mod plugins;
 mod remove;
+mod shell_env;
 mod sync;
 mod update;
 
@@ -25,6 +26,7 @@ use install::{InstallOptions, run_install};
 use launch::{LaunchOptions, launch_profile};
 use plugins::{list_plugins, print_plugins};
 use remove::{RemoveOptions, run_remove};
+use shell_env::{ShellArg, run_env};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -88,6 +90,17 @@ enum Commands {
 
     /// Validate the whole config (read-only)
     Doctor,
+
+    /// Print shell commands to set up env vars for headless Binary Ninja Python use
+    Env {
+        /// Profile name (defaults to global.default_profile)
+        #[arg(add = ArgValueCandidates::new(profile_completer))]
+        profile: Option<String>,
+
+        /// Output shell dialect (auto-detected from $SHELL / OS if omitted)
+        #[arg(long, value_enum)]
+        shell: Option<ShellArg>,
+    },
 
     /// Generate shell completions
     Completions {
@@ -289,6 +302,19 @@ fn main() {
                     process::exit(1);
                 }
             }
+        }
+        Some(Commands::Env { profile, shell }) => {
+            let name = match profile.or_else(|| config.global.default_profile.clone()) {
+                Some(n) => n,
+                None => {
+                    eprintln!("Error: No profile specified.");
+                    eprintln!("Usage: bn-loader env <profile>");
+                    process::exit(1);
+                }
+            };
+            let result =
+                resolve_profile(&config, &name).and_then(|profile| run_env(profile, shell));
+            report_and_exit(result, config.global.debug);
         }
         Some(Commands::Completions { .. }) => {
             // Already handled above
