@@ -77,6 +77,13 @@ fn detect_dialect() -> ShellDialect {
 
 /// Prepend `dir` to `current` using the host PATH separator. Empty/None current
 /// yields `dir` alone (no trailing separator).
+///
+/// `current` is bn-loader's own inherited value, which equals the calling
+/// shell's exported value (bn-loader runs as a direct child of it). We emit the
+/// fully-resolved literal rather than a `$PYTHONPATH`-style reference on purpose:
+/// referencing an unset variable would expand to a trailing separator (e.g.
+/// `export PYTHONPATH="/new:"`) and silently add the current directory to the
+/// path. Do not change this to emit shell variable references.
 fn prepend_value(dir: &str, current: Option<String>) -> String {
     match current {
         Some(c) if !c.is_empty() => format!("{dir}{PATH_SEP}{c}"),
