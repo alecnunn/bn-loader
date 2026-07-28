@@ -173,10 +173,11 @@ bn-loader env personal --shell fish | source
 bn-loader env personal --shell powershell | Invoke-Expression
 ```
 
-This lets you `import binaryninja` from a regular Python interpreter outside Binary Ninja, using the selected profile's install and license. It emits three variables to stdout (diagnostics go to stderr, so `eval` stays safe):
+This lets you `import binaryninja` from a regular Python interpreter outside Binary Ninja, using the selected profile's install and license. It emits four variables to stdout (diagnostics go to stderr, so `eval` stays safe):
 
 - `PYTHONPATH` - prepends `<install_dir>/python` so the `binaryninja` package is importable.
 - `BN_USER_DIRECTORY` - points at the profile's `config_dir` (license and settings).
+- `BN_INSTALL_DIR` - set to `<install_dir>` for the C++ API's CMake. `cmake/FindBinaryNinjaCore.cmake` checks this variable before its hardcoded install-location fallbacks, so the selected profile wins over a system-wide Binary Ninja.
 - The OS library search path (`PATH` on Windows, `LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS) - prepends `<install_dir>` so the Binary Ninja core library resolves.
 
 The output shell dialect is auto-detected (PowerShell on Windows; otherwise from `$SHELL`). Override it with `--shell bash|zsh|sh|fish|powershell|cmd`. Note: `cmd` output uses `set` statements that you run directly rather than via `eval`/`Invoke-Expression`.

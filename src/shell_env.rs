@@ -8,6 +8,11 @@ const PATH_SEP: char = ';';
 #[cfg(not(windows))]
 const PATH_SEP: char = ':';
 
+/// Path hint consumed by the C++ API's `cmake/FindBinaryNinjaCore.cmake`, which
+/// checks `$ENV{BN_INSTALL_DIR}` before its hardcoded install-location fallbacks.
+/// Emitting it lets a bn-loader profile win over a system-wide Binary Ninja.
+const BN_INSTALL_DIR_VAR: &str = "BN_INSTALL_DIR";
+
 /// Name of the OS shared-library search-path variable on the host OS.
 #[cfg(windows)]
 const LIB_PATH_VAR: &str = "PATH";
@@ -145,6 +150,9 @@ fn build_assignments(profile: &Profile) -> Vec<(String, String)> {
             prepend_value(&python_dir, env::var("PYTHONPATH").ok()),
         ),
         (ENV_VAR_NAME.to_string(), config),
+        // A single path hint, not a PATH-style list -- assign it directly and
+        // never route it through prepend_value.
+        (BN_INSTALL_DIR_VAR.to_string(), install.clone()),
         (
             LIB_PATH_VAR.to_string(),
             prepend_value(&install, env::var(LIB_PATH_VAR).ok()),
@@ -268,13 +276,33 @@ mod tests {
     }
 
     #[test]
-    fn render_emits_three_known_vars() {
+    fn render_emits_four_known_vars() {
         let (_dir, profile) = temp_profile();
         let out = render(&profile, ShellDialect::Posix).unwrap();
-        assert_eq!(out.lines().count(), 3);
+        assert_eq!(out.lines().count(), 4);
         assert!(out.contains("PYTHONPATH"));
         assert!(out.contains(ENV_VAR_NAME));
+        assert!(out.contains(BN_INSTALL_DIR_VAR));
         assert!(out.contains(LIB_PATH_VAR));
+    }
+
+    /// BN_INSTALL_DIR is a single path hint for CMake, not a PATH-style list:
+    /// its value must be exactly install_dir, never a prepend of an inherited
+    /// value. (We assert on build_assignments rather than mutating the process
+    /// environment, which is unsafe in edition 2024 and racy under the parallel
+    /// test harness.)
+    #[test]
+    fn bn_install_dir_is_a_plain_assignment() {
+        let (_dir, profile) = temp_profile();
+        let expected = profile.install_dir.to_string_lossy().into_owned();
+        let assignments = build_assignments(&profile);
+        let value = assignments
+            .iter()
+            .find(|(name, _)| name == BN_INSTALL_DIR_VAR)
+            .map(|(_, value)| value.clone())
+            .expect("BN_INSTALL_DIR must be emitted");
+        assert_eq!(value, expected);
+        assert!(!value.contains(PATH_SEP));
     }
 
     #[test]
