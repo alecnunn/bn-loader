@@ -24,15 +24,15 @@ Download from the [releases page](https://github.com/alecnunn/bn-loader/releases
 
 ## Quick Start
 
-1. Copy `example.config.toml` to `~/.config/bn-loader.toml`
+1. Run any command (e.g. `bn-loader --list`) once -- bn-loader writes a starter `~/.config/bn-loader.toml` if you don't have one
 2. Edit the file to define your profiles
 3. Run `bn-loader <profile-name>` to launch
 
 ## Configuration
 
-bn-loader looks for its config file in these locations (in order):
-1. `~/.config/bn-loader.toml` (recommended)
-2. Next to the executable
+bn-loader reads its config from `~/.config/bn-loader.toml`, or from the path given to `--config` / `-c`.
+
+On first run, if `~/.config/bn-loader.toml` doesn't exist, bn-loader creates it from the template in `example.config.toml` (all commented out, so no profiles are defined yet) and carries on. A path passed explicitly with `--config` is never created for you -- a missing one is an error.
 
 A basic config looks like this:
 
