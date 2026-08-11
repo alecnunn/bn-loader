@@ -230,30 +230,26 @@ fn list_profiles_cmd(out: &output::Output, config: &Config) {
 }
 
 fn load_config_or_exit(custom_config: Option<&Path>) -> (PathBuf, Config) {
-    let config_path = if let Some(p) = find_config_file(custom_config.and_then(|p| p.to_str())) {
-        p
-    } else {
-        eprintln!("Error: No config file found.");
-        eprintln!("Searched locations:");
-        // Show preferred location first
-        if let Some(home) = env::var("HOME")
-            .ok()
-            .or_else(|| env::var("USERPROFILE").ok())
-        {
-            eprintln!(
-                "  - {}",
-                PathBuf::from(home)
-                    .join(".config")
-                    .join(CONFIG_FILE_NAME)
-                    .display()
-            );
-        }
-        if let Ok(exe_path) = env::current_exe()
-            && let Some(exe_dir) = exe_path.parent()
-        {
-            eprintln!("  - {}", exe_dir.join(CONFIG_FILE_NAME).display());
-        }
-        process::exit(1);
+    let config_path = match find_config_file(custom_config.and_then(|p| p.to_str())) {
+        Some(p) => p,
+        // An explicit --config path that doesn't exist is a typo, not a first run:
+        // find_config_file already reported it.
+        None if custom_config.is_some() => process::exit(1),
+        // First run: bootstrap a starter config instead of failing to start.
+        None => match config::create_default_config() {
+            Ok(path) => {
+                eprintln!("Created a starter config at {}", path.display());
+                eprintln!(
+                    "It has no profiles yet -- edit it, or register one with `bn-loader profile install`."
+                );
+                path
+            }
+            Err(e) => {
+                eprintln!("Error: No config file found and none could be created: {e:#}");
+                eprintln!("Expected location: ~/.config/{CONFIG_FILE_NAME}");
+                process::exit(1);
+            }
+        },
     };
 
     let config = match load_config(&config_path) {

@@ -14,6 +14,12 @@ pub(crate) const DEFAULT_EXECUTABLE: &str = "binaryninja";
 pub(crate) const CONFIG_FILE_NAME: &str = "bn-loader.toml";
 pub(crate) const ENV_VAR_NAME: &str = "BN_USER_DIRECTORY";
 
+/// Starter config written on first run when no config file exists yet.
+///
+/// Shares its content with the repository's `example.config.toml` so the two
+/// can't drift. It is all comments, so it parses into a default `Config`.
+const DEFAULT_CONFIG_TEMPLATE: &str = include_str!("../example.config.toml");
+
 fn default_executable() -> String {
     DEFAULT_EXECUTABLE.to_string()
 }
@@ -34,7 +40,7 @@ fn home_dir() -> Option<PathBuf> {
 }
 
 /// Get the configuration path
-fn user_config_path() -> Option<PathBuf> {
+pub(crate) fn user_config_path() -> Option<PathBuf> {
     home_dir().map(|home| home.join(".config").join(CONFIG_FILE_NAME))
 }
 
@@ -157,6 +163,37 @@ pub(crate) fn find_config_file(custom_path: Option<&str>) -> Option<PathBuf> {
     None
 }
 
+/// Write a starter config to the default user config path (`~/.config/bn-loader.toml`),
+/// creating parent directories as needed. Returns the path that was written.
+///
+/// Errors if the home directory can't be determined or the file already exists.
+pub(crate) fn create_default_config() -> Result<PathBuf> {
+    let path = user_config_path()
+        .context("Could not determine home directory (set HOME or USERPROFILE)")?;
+    write_default_config(&path)?;
+    Ok(path)
+}
+
+/// Write the starter config template to `path`. Never overwrites an existing file.
+fn write_default_config(path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create directory {}", parent.display()))?;
+    }
+
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .with_context(|| format!("Failed to create config file {}", path.display()))?;
+
+    use std::io::Write;
+    file.write_all(DEFAULT_CONFIG_TEMPLATE.as_bytes())
+        .with_context(|| format!("Failed to write config file {}", path.display()))?;
+
+    Ok(())
+}
+
 pub(crate) fn load_config(path: &Path) -> Result<Config> {
     let content = fs::read_to_string(path).context("Failed to read config file")?;
     toml::from_str(&content).context("Failed to parse config file")
@@ -236,4 +273,64 @@ pub(crate) fn is_valid_profile_name(name: &str) -> bool {
         && name
             .chars()
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_template_parses_into_an_empty_config() {
+        let config: Config = toml::from_str(DEFAULT_CONFIG_TEMPLATE)
+            .expect("starter config template must be valid TOML");
+        assert!(config.profiles.is_empty());
+        assert!(config.global.default_profile.is_none());
+        assert_eq!(config.global.backup_retention, default_backup_retention());
+    }
+
+    #[test]
+    fn write_default_config_creates_parent_dirs_and_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".config").join(CONFIG_FILE_NAME);
+
+        write_default_config(&path).unwrap();
+
+        assert!(path.exists());
+        assert_eq!(fs::read_to_string(&path).unwrap(), DEFAULT_CONFIG_TEMPLATE);
+        load_config(&path).expect("freshly created config must load");
+    }
+
+    #[test]
+    fn write_default_config_never_overwrites() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(CONFIG_FILE_NAME);
+        fs::write(
+            &path,
+            "[profiles.keep]\ninstall_dir = \"/a\"\nconfig_dir = \"/b\"\n",
+        )
+        .unwrap();
+
+        assert!(write_default_config(&path).is_err());
+        assert!(fs::read_to_string(&path).unwrap().contains("profiles.keep"));
+    }
+
+    #[test]
+    fn appended_profile_is_readable_from_a_fresh_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(CONFIG_FILE_NAME);
+        write_default_config(&path).unwrap();
+
+        append_profile_to_config(
+            &path,
+            "stable",
+            Path::new("/opt/bn"),
+            Path::new("/home/u/.bn"),
+        )
+        .unwrap();
+
+        let config = load_config(&path).unwrap();
+        let profile = config.profiles.get("stable").expect("profile registered");
+        assert_eq!(profile.install_dir, PathBuf::from("/opt/bn"));
+        assert_eq!(profile.executable, DEFAULT_EXECUTABLE);
+    }
 }

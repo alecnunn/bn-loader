@@ -1,7 +1,7 @@
 # bn-loader configuration
 #
-# Copy this file to ~/.config/bn-loader.toml and uncomment the examples
-# for your platform.
+# Lives at ~/.config/bn-loader.toml. bn-loader writes this file for you on its
+# first run; uncomment the examples below for your platform to get started.
 
 # ============================================================================
 # Global Settings (optional)
